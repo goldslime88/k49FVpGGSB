@@ -69,6 +69,11 @@ struct Receiver_t
     LLnode * input_framelist_head;
     
     int recv_id;
+    int LAR;
+    int LFS;
+    int RWS;
+    int SeqNumToAck; 
+
 };
 
 struct Sender_t
@@ -83,7 +88,16 @@ struct Sender_t
     pthread_cond_t buffer_cv;    
     LLnode * input_cmdlist_head;
     LLnode * input_framelist_head;
+
     int send_id;
+    int seqNum;
+    int LFR;
+    int LAF;
+    int SWS;
+    Frame cached_FrameArray[8];
+    bool isCached_Frame[8];
+    long lastSendTime_Frame[8];
+
 };
 
 enum SendFrame_DstType 
@@ -103,7 +117,12 @@ typedef struct Receiver_t Receiver;
 #define FRAME_PAYLOAD_SIZE 64
 struct Frame_t
 {
-    char data[FRAME_PAYLOAD_SIZE];
+    char recv_id[2];
+    char send_id[2];
+    char seqNum[1];
+    char crc[1];
+    char inAddition[2];
+    char data[FRAME_PAYLOAD_SIZE - 8];
 };
 typedef struct Frame_t Frame;
 

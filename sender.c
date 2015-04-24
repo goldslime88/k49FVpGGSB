@@ -8,6 +8,11 @@ void init_sender(Sender * sender, int id)
 	sender->send_id = id;
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
+    sender->seqNum = 0;
+    sender->LFS = -1;
+    sender->LAR = -1;
+    sender->SWS = 8;
+    sender->cached_framelist_head = NULL;
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -25,7 +30,36 @@ void handle_incoming_acks(Sender * sender,
     //    2) Convert the char * buffer to a Frame data type
     //    3) Check whether the frame is corrupted
     //    4) Check whether the frame is for this sender
-    //    5) Do sliding window protocol for sender/receiver pair   
+    //    5) Do sliding window protocol for sender/receiver pair 
+    int incoming_msgs_length = ll_get_length(sender->input_framelist_head);
+    while (incoming_msgs_length > 0)
+    {
+        //Pop a node off the front of the link list and update the count
+        LLnode * ll_inmsg_node = ll_pop_node(&sender->input_framelist_head);
+        incoming_msgs_length = ll_get_length(sender->input_framelist_head);
+
+        //DUMMY CODE: Print the raw_char_buf
+        //NOTE: You should not blindly print messages!
+        //      Ask yourself: Is this message really for me?
+        //                    Is this message corrupted?
+        //                    Is this an old, retransmitted message?           
+        char * raw_char_buf = (char *) ll_inmsg_node->value;
+        Frame * inframe = convert_char_to_frame(raw_char_buf);
+        
+        //Free raw_char_buf
+        free(raw_char_buf);
+        uint16_t src;
+        uint16_t dst;
+        int seqNum;    
+        src = (int)(inframe->send_id[0]) * 256 +  (int)(inframe->send_id[1]);
+        dst = (int)(inframe->recv_id[0]) * 256 +  (int)(inframe->recv_id[1]);
+        seqNum = (int)(inframe->seqNum[0]);
+        if(dst == sender->send_id){
+            sender->LAR++;
+            fprintf(stderr, "Package %d received\n", seqNum);
+        }
+    }
+
 }
 
 
@@ -37,49 +71,62 @@ void handle_input_cmds(Sender * sender,
     //    2) Convert to Frame
     //    3) Set up the frame according to the sliding window protocol
     //    4) Compute CRC and add CRC to Frame
+    if(sender->LFS - sender->LAR < sender->SWS){
+        int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
 
-    int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-    
-        
-    //Recheck the command queue length to see if stdin_thread dumped a command on us
-    input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-    while (input_cmd_length > 0)
-    {
-        //Pop a node off and update the input_cmd_length
-        LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
-        input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-
-        //Cast to Cmd type and free up the memory for the node
-        Cmd * outgoing_cmd = (Cmd *) ll_input_cmd_node->value;
-        free(ll_input_cmd_node);
             
-
-        //DUMMY CODE: Add the raw char buf to the outgoing_frames list
-        //NOTE: You should not blindly send this message out!
-        //      Ask yourself: Is this message actually going to the right receiver (recall that default behavior of send is to broadcast to all receivers)?
-        //                    Does the receiver have enough space in in it's input queue to handle this message?
-        //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
-        int msg_length = strlen(outgoing_cmd->message);
-        if (msg_length > MAX_FRAME_SIZE)
+        //Recheck the command queue length to see if stdin_thread dumped a command on us
+        input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+        while (input_cmd_length > 0)
         {
-            //Do something about messages that exceed the frame size
-            printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
-        }
-        else
-        {
-            //This is probably ONLY one step you want
-            Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
-            strcpy(outgoing_frame->data, outgoing_cmd->message);
+            //fprintf(stderr, "begin handle_input_cmds\n");
+            //Pop a node off and update the input_cmd_length
+            LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
+            input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+            
+            //Cast to Cmd type and free up the memory for the node
+            Cmd * outgoing_cmd = (Cmd *) ll_input_cmd_node->value;
+            free(ll_input_cmd_node);
+                
 
-            //At this point, we don't need the outgoing_cmd
-            free(outgoing_cmd->message);
-            free(outgoing_cmd);
+            //DUMMY CODE: Add the raw char buf to the outgoing_frames list
+            //NOTE: You should not blindly send this message out!
+            //      Ask yourself: Is this message actually going to the right receiver (recall that default behavior of send is to broadcast to all receivers)?
+            //                    Does the receiver have enough space in in it's input queue to handle this message?
+            //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
+            int msg_length = strlen(outgoing_cmd->message);
+            if (msg_length > MAX_FRAME_SIZE)
+            {
+                //Do something about messages that exceed the frame size
+                printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
+            }
+            else
+            {
+                //This is probably ONLY one step you want
+                Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+                strcpy(outgoing_frame->data, outgoing_cmd->message);
+                outgoing_frame->recv_id[0] = (char)((outgoing_cmd->dst_id>>8) & 0xFF);
+                outgoing_frame->recv_id[1] = (char)((outgoing_cmd->dst_id) & 0xFF);
+                outgoing_frame->send_id[0] = (char)((outgoing_cmd->src_id>>8) & 0xFF);
+                outgoing_frame->send_id[1] = (char)((outgoing_cmd->src_id) & 0xFF);
+                outgoing_frame->seqNum[0] = (char)(sender->seqNum);
+                if(seqNum == 255){
+                    seqNum = 0;
+                }
+                else{
+                    sender->seqNum++;
+                }
+                sender->LFS++;
+                //At this point, we don't need the outgoing_cmd
+                free(outgoing_cmd->message);
+                free(outgoing_cmd);
 
-            //Convert the message to the outgoing_charbuf
-            char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-            ll_append_node(outgoing_frames_head_ptr,
-                           outgoing_charbuf);
-            free(outgoing_frame);
+                //Convert the message to the outgoing_charbuf
+                char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+                ll_append_node(outgoing_frames_head_ptr,
+                               outgoing_charbuf);
+                free(outgoing_frame);
+            }
         }
     }   
 }

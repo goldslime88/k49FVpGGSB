@@ -123,12 +123,30 @@ char * convert_frame_to_char(Frame * frame)
 {
     //TODO: You should implement this as necessary
     char * char_buffer = (char *) malloc(MAX_FRAME_SIZE);
+    //fprintf(stderr, "begin convert_frame_to_char\n");
     memset(char_buffer,
            0,
            MAX_FRAME_SIZE);
     memcpy(char_buffer, 
+           frame->send_id,
+           2);
+    memcpy(char_buffer+2, 
+           frame->recv_id,
+           2);
+    memcpy(char_buffer+4, 
+           frame->seqNum,
+           1);
+    memcpy(char_buffer+5, 
+           frame->crc,
+           1);
+    memcpy(char_buffer+6, 
+           frame->inAddition,
+           2);
+    memcpy(char_buffer+8, 
            frame->data,
-           FRAME_PAYLOAD_SIZE);
+           56);
+
+
     return char_buffer;
 }
 
@@ -137,11 +155,44 @@ Frame * convert_char_to_frame(char * char_buf)
 {
     //TODO: You should implement this as necessary
     Frame * frame = (Frame *) malloc(sizeof(Frame));
+    //fprintf(stderr, "begin convert_char_to_frame\n");
+    
+    memset(frame->send_id,
+           0,
+           sizeof(char)*sizeof(frame->send_id));
+    memcpy(frame->send_id, 
+           char_buf,
+           sizeof(char)*sizeof(frame->send_id));
+    memset(frame->recv_id,
+           0,
+           sizeof(char)*sizeof(frame->recv_id));
+    memcpy(frame->recv_id, 
+           char_buf+2,
+           sizeof(char)*sizeof(frame->recv_id));
+    memset(frame->seqNum,
+           0,
+           sizeof(char)*sizeof(frame->seqNum));
+    memcpy(frame->seqNum, 
+           char_buf+4,
+           sizeof(char)*sizeof(frame->seqNum));
+    memset(frame->crc,
+           0,
+           sizeof(char)*sizeof(frame->crc));
+    memcpy(frame->crc, 
+           char_buf+5,
+           sizeof(char)*sizeof(frame->crc));
+    memset(frame->inAddition,
+           0,
+           sizeof(char)*sizeof(frame->inAddition));
+    memcpy(frame->inAddition, 
+           char_buf+6,
+           sizeof(char)*sizeof(frame->inAddition));
     memset(frame->data,
            0,
            sizeof(char)*sizeof(frame->data));
     memcpy(frame->data, 
-           char_buf,
+           char_buf+8,
            sizeof(char)*sizeof(frame->data));
+
     return frame;
 }

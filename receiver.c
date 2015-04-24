@@ -7,6 +7,10 @@ void init_receiver(Receiver * receiver,
 	pthread_mutex_init(&receiver->buffer_mutex, NULL);
 	receiver->recv_id = id;
     receiver->input_framelist_head = NULL;
+    receiver->LAF = -1;
+    receiver->LFR = -1;
+    receiver->RWS = 8;
+    receiver->SeqNumToAck = -1; 
 }
 
 
@@ -37,9 +41,28 @@ void handle_incoming_msgs(Receiver * receiver,
         
         //Free raw_char_buf
         free(raw_char_buf);
-        
-        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+        uint16_t src;
+        uint16_t dst;
+        int seqNum;    
+        src = (int)(inframe->send_id[0]) * 256 +  (int)(inframe->send_id[1]);
+        dst = (int)(inframe->recv_id[0]) * 256 +  (int)(inframe->recv_id[1]);
+        seqNum = (int)(inframe->seqNum[0]);
+        if(dst == receiver->recv_id && seqNum >receiver->LFR && seqNum <= receiver->LAF){
+            fprintf(stderr,"should <SEND_%d> to <RECV_%d>\n", src, dst);
+            printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+            Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+            outgoing_frame->recv_id[0] = (char)((src>>8) & 0xFF);
+            outgoing_frame->recv_id[1] = (char)((src) & 0xFF);
+            outgoing_frame->send_id[0] = (char)((dst>>8) & 0xFF);
+            outgoing_frame->send_id[1] = (char)((dst) & 0xFF);
+            outgoing_frame->seqNum[0] = (char)(seqNum);
+            //Convert the message to the outgoing_charbuf
+            char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+            ll_append_node(outgoing_frames_head_ptr,
+                           outgoing_charbuf);
+            free(outgoing_frame);
 
+        }
         free(inframe);
         free(ll_inmsg_node);
     }
