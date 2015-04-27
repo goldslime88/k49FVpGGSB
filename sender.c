@@ -12,13 +12,43 @@ void init_sender(Sender * sender, int id)
     sender->LFS = -1;
     sender->LAR = -1;
     sender->SWS = 8;
-    sender->cached_framelist_head = NULL;
+    int i;
+    for(i = 0; i < 8; i++){
+        sender->isCached_Frame[i] = 0;
+        sender->cached_FrameArray[i] = NULL;
+        sender->seqQue[i] = -1;
+        gettimeofday(&(sender->lastSendTime_Frame[i]),NULL);
+        
+    }
+
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
     //TODO: You should fill in this function so that it returns the next timeout that should occur
-    return NULL;
+    // struct timeval    curr_timeval;
+    // gettimeofday(&curr_timeval,NULL);
+    // int i,minIndex=-1;
+    // long timeDiff, min=1000000000;
+    
+    struct timeval * timeDiff = NULL;
+    int i;
+    for(i = 0; i < 8; i++){
+        if(sender->isCached_Frame[i] == 1){
+            if(timeDiff == NULL){
+                timeDiff = &(sender->lastSendTime_Frame[i]);
+            }
+            else{
+                long dif = timeval_usecdiff(timeDiff, &(sender->lastSendTime_Frame[i]));
+                if(dif > 0){
+                    timeDiff = &(sender->lastSendTime_Frame[i]);
+                }
+            }
+        }
+    }
+        
+    return timeDiff;
+
 }
 
 
@@ -32,12 +62,14 @@ void handle_incoming_acks(Sender * sender,
     //    4) Check whether the frame is for this sender
     //    5) Do sliding window protocol for sender/receiver pair 
     int incoming_msgs_length = ll_get_length(sender->input_framelist_head);
+    // fprintf(stderr, "in handle_incoming_acks\n");
+
     while (incoming_msgs_length > 0)
     {
         //Pop a node off the front of the link list and update the count
         LLnode * ll_inmsg_node = ll_pop_node(&sender->input_framelist_head);
         incoming_msgs_length = ll_get_length(sender->input_framelist_head);
-
+        //fprintf(stderr, "this is bug!!!!!\n" );
         //DUMMY CODE: Print the raw_char_buf
         //NOTE: You should not blindly print messages!
         //      Ask yourself: Is this message really for me?
@@ -45,20 +77,35 @@ void handle_incoming_acks(Sender * sender,
         //                    Is this an old, retransmitted message?           
         char * raw_char_buf = (char *) ll_inmsg_node->value;
         Frame * inframe = convert_char_to_frame(raw_char_buf);
-        
+        uint8_t isCorrect = (uint8_t)crc8Caculate(raw_char_buf, 64);
+        //fprintf(stderr, "ack reminder is %d\n", isCorrect );
+
         //Free raw_char_buf
         free(raw_char_buf);
         uint16_t src;
         uint16_t dst;
-        int seqNum;    
-        src = (int)(inframe->send_id[0]) * 256 +  (int)(inframe->send_id[1]);
-        dst = (int)(inframe->recv_id[0]) * 256 +  (int)(inframe->recv_id[1]);
-        seqNum = (int)(inframe->seqNum[0]);
-        if(dst == sender->send_id){
+        uint8_t seqNum;    
+        src = (uint16_t)(inframe->send_id[0]) * 256 +  (uint16_t)(inframe->send_id[1]);
+        dst = (uint16_t)(inframe->recv_id[0]) * 256 +  (uint16_t)(inframe->recv_id[1]);
+        seqNum = (uint8_t)(inframe->seqNum[0]);
+        int i;
+        if(isCorrect != 0){
+            fprintf(stderr, "ACK of %d is corrupted.\n",seqNum );
+        }
+        if(dst == sender->send_id && isCorrect == 0){
             sender->LAR++;
-            fprintf(stderr, "Package %d received\n", seqNum);
+            for(i = 0; i < 8; i++){
+                if(sender->seqQue[i] == seqNum){
+                    sender->isCached_Frame[i] = 0;
+                    
+                }
+            }
+            
+            fprintf(stderr, "ACK of %d received.\n", seqNum);
         }
     }
+
+    // fprintf(stderr, "out handle_incoming_acks\n");
 
 }
 
@@ -71,7 +118,17 @@ void handle_input_cmds(Sender * sender,
     //    2) Convert to Frame
     //    3) Set up the frame according to the sliding window protocol
     //    4) Compute CRC and add CRC to Frame
-    if(sender->LFS - sender->LAR < sender->SWS){
+    // fprintf(stderr, "in handle_input_cmds\n");
+
+    int LfsMinusLar;
+    if(sender->LFS - sender->LAR < 0){
+        LfsMinusLar = 256 + sender->LFS - sender->LAR;
+
+    }
+    else{
+        LfsMinusLar = sender->LFS - sender->LAR;
+    }
+    if(LfsMinusLar < sender->SWS){
         int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
 
             
@@ -83,7 +140,6 @@ void handle_input_cmds(Sender * sender,
             //Pop a node off and update the input_cmd_length
             LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
             input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-            
             //Cast to Cmd type and free up the memory for the node
             Cmd * outgoing_cmd = (Cmd *) ll_input_cmd_node->value;
             free(ll_input_cmd_node);
@@ -95,40 +151,120 @@ void handle_input_cmds(Sender * sender,
             //                    Does the receiver have enough space in in it's input queue to handle this message?
             //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
             int msg_length = strlen(outgoing_cmd->message);
-            if (msg_length > MAX_FRAME_SIZE)
+            Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+            if (msg_length > FRAME_PAYLOAD_SIZE-1)
             {
                 //Do something about messages that exceed the frame size
-                printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
+                // printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
+                char * temp_data = (char*) malloc(sizeof(char) * FRAME_PAYLOAD_SIZE);
+                
+                memset(temp_data,0,FRAME_PAYLOAD_SIZE);
+                int i = 0;
+                
+                while(i < FRAME_PAYLOAD_SIZE-1){
+                    temp_data[i] = (outgoing_cmd->message)[i];
+                    i++;
+                }
+
+                outgoing_cmd->message = outgoing_cmd->message + FRAME_PAYLOAD_SIZE;
+                
+                
+                ll_append_node(&sender->input_cmdlist_head,
+                               (void *) outgoing_cmd);
+                // fprintf(stderr, "%d \n", strlen(temp_data));
+                strcpy(outgoing_frame->data, temp_data);
+                // fprintf(stderr, "sender before data size is %d \n", strlen(outgoing_frame->data));
+                outgoing_frame->recv_id[0] = (char)((outgoing_cmd->dst_id>>8) & 0xFF);
+                outgoing_frame->recv_id[1] = (char)((outgoing_cmd->dst_id) & 0xFF);
+                outgoing_frame->send_id[0] = (char)((outgoing_cmd->src_id>>8) & 0xFF);
+                outgoing_frame->send_id[1] = (char)((outgoing_cmd->src_id) & 0xFF);
+                outgoing_frame->seqNum[0] = (char)(sender->seqNum);                            
+                outgoing_frame->inAddition[1] = (char)(1 & 0xFF);
+                
+                
+
+
             }
-            else
-            {
-                //This is probably ONLY one step you want
-                Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+
+            //This is probably ONLY one step you want
+            else{
+
+                
                 strcpy(outgoing_frame->data, outgoing_cmd->message);
                 outgoing_frame->recv_id[0] = (char)((outgoing_cmd->dst_id>>8) & 0xFF);
                 outgoing_frame->recv_id[1] = (char)((outgoing_cmd->dst_id) & 0xFF);
                 outgoing_frame->send_id[0] = (char)((outgoing_cmd->src_id>>8) & 0xFF);
                 outgoing_frame->send_id[1] = (char)((outgoing_cmd->src_id) & 0xFF);
                 outgoing_frame->seqNum[0] = (char)(sender->seqNum);
-                if(seqNum == 255){
-                    seqNum = 0;
-                }
-                else{
-                    sender->seqNum++;
-                }
-                sender->LFS++;
-                //At this point, we don't need the outgoing_cmd
-                free(outgoing_cmd->message);
-                free(outgoing_cmd);
-
-                //Convert the message to the outgoing_charbuf
-                char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-                ll_append_node(outgoing_frames_head_ptr,
-                               outgoing_charbuf);
-                free(outgoing_frame);
+                outgoing_frame->inAddition[1] = (char)(0 & 0xFF);
+            
             }
+
+            //At this point, we don't need the outgoing_cmd
+            
+            //break
+            //Convert the message to the outgoing_charbuf
+            char * calculating_charbuf = convert_frame_to_char(outgoing_frame);
+            uint8_t crc = (uint8_t)crc8Caculate(calculating_charbuf, 63);
+            // fprintf(stderr, "sender john data size is %d \n", strlen(outgoing_frame->data));
+            // fprintf(stderr, "message crc is %u\n", crc);
+            outgoing_frame->crc[0] = (char)(crc);
+            // fprintf(stderr, "sender during data size is %d \n", strlen(outgoing_frame->data));
+
+            char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+            //char * storing_charbuf = convert_frame_to_char(outgoing_frame);
+            // memset(storing_charbuf,0,64);
+            // memcpy(storing_charbuf,outgoing_charbuf,64);
+            int i;
+            for(i=0;i<8;i++){
+                if(sender->isCached_Frame[i] == 0){
+                    sender->isCached_Frame[i] = 1;
+                    (sender->cached_FrameArray)[i] = (char*)malloc(sizeof(char)*MAX_FRAME_SIZE);
+                    memset(sender->cached_FrameArray[i], 0, 64);
+                    memcpy(sender->cached_FrameArray[i],outgoing_charbuf,64);
+                    //fprintf(stderr, "size is %ld\n",sizeof(storing_charbuf) );
+                    sender->seqQue[i] = sender->seqNum;
+                    // fprintf(stderr, "seqQue : %d\n", sender->seqNum);
+                    struct timeval curr;
+                    gettimeofday(&curr, NULL);
+                    long usTime = curr.tv_usec+100000;
+                    if(usTime>=1000000){
+                        (sender->lastSendTime_Frame[i]).tv_sec = curr.tv_sec+1;
+                        (sender->lastSendTime_Frame[i]).tv_usec = curr.tv_usec-900000;
+                    }
+                    else{
+                        (sender->lastSendTime_Frame[i]).tv_sec = curr.tv_sec;
+                        (sender->lastSendTime_Frame[i]).tv_usec = curr.tv_usec+100000;
+                    }
+                    
+                    break;
+                }
+                           
+            }
+            fprintf(stderr, "%d is sent.\n", sender->seqNum);
+            if(sender->seqNum == 255){
+                sender->seqNum = 0;
+            }
+            else{
+                sender->seqNum++;
+            }
+            sender->LFS++;
+            // fprintf(stderr, "sender data size %d \n", strlen(outgoing_frame->data));
+
+            fprintf(stderr, "LAR is %d, LFS is %d \n", sender->LAR, sender->LFS);
+            ll_append_node(outgoing_frames_head_ptr,
+                           outgoing_charbuf);
+            free(outgoing_frame);
+            free(calculating_charbuf);
+            
+            
+            // free(outgoing_cmd->message);
+            // free(outgoing_cmd);
         }
-    }   
+    } 
+    
+    // fprintf(stderr, "out handle_input_cmds\n");
+  
 }
 
 
@@ -139,13 +275,49 @@ void handle_timedout_frames(Sender * sender,
     //    1) Iterate through the sliding window protocol information you maintain for each receiver
     //    2) Locate frames that are timed out and add them to the outgoing frames
     //    3) Update the next timeout field on the outgoing frames
+    
+    int i;
+    long timeDiff;
+    // fprintf(stderr, "in handle_timedout_frames\n");
+    for(i = 0; i < 8; i++){
+        if(sender->isCached_Frame[i] == 1 && sender->cached_FrameArray[i] != NULL){
+            struct timeval    curr_timeval;
+            gettimeofday(&curr_timeval,NULL);
+            timeDiff = timeval_usecdiff(&(sender->lastSendTime_Frame[i]), &curr_timeval);
+            // fprintf(stderr, "%ld\n",timeDiff );
+            if(timeDiff >=0){
+
+                // fprintf(stderr, "hahahah\n" );
+                char *tempBuf =  (char *) malloc(sizeof(char)*MAX_FRAME_SIZE);
+                memset(tempBuf,0,MAX_FRAME_SIZE);
+                memcpy(tempBuf,sender->cached_FrameArray[i], MAX_FRAME_SIZE);
+
+                ll_append_node(outgoing_frames_head_ptr,
+                               tempBuf);
+                gettimeofday(&curr_timeval,NULL);
+                long usTime = curr_timeval.tv_usec+100000;
+                if(usTime>=1000000){
+                    (sender->lastSendTime_Frame[i]).tv_sec = curr_timeval.tv_sec+1;
+                    (sender->lastSendTime_Frame[i]).tv_usec = curr_timeval.tv_usec-900000;
+                }
+                else{
+                    (sender->lastSendTime_Frame[i]).tv_sec = curr_timeval.tv_sec;
+                    (sender->lastSendTime_Frame[i]).tv_usec = curr_timeval.tv_usec+100000;
+                }
+                fprintf(stderr, "in %d us, %d resend.\n", curr_timeval.tv_usec, sender->seqQue[i]);
+
+            }
+        }
+    }
+    // fprintf(stderr, "out handle_timedout_frames\n");
+
 }
 
 
 void * run_sender(void * input_sender)
 {    
     struct timespec   time_spec;
-    struct timeval    curr_timeval;
+    struct timeval    curr_timeval; 
     const int WAIT_SEC_TIME = 0;
     const long WAIT_USEC_TIME = 100000;
     Sender * sender = (Sender *) input_sender;    
@@ -250,7 +422,7 @@ void * run_sender(void * input_sender)
         {
             LLnode * ll_outframe_node = ll_pop_node(&outgoing_frames_head);
             char * char_buf = (char *)  ll_outframe_node->value;
-
+            
             //Don't worry about freeing the char_buf, the following function does that
             send_msg_to_receivers(char_buf);
 
@@ -260,6 +432,7 @@ void * run_sender(void * input_sender)
             ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
         }
     }
+
     pthread_exit(NULL);
     return 0;
 }

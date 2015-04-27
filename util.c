@@ -137,14 +137,15 @@ char * convert_frame_to_char(Frame * frame)
            frame->seqNum,
            1);
     memcpy(char_buffer+5, 
-           frame->crc,
-           1);
-    memcpy(char_buffer+6, 
            frame->inAddition,
            2);
-    memcpy(char_buffer+8, 
+    memcpy(char_buffer+7, 
            frame->data,
            56);
+    memcpy(char_buffer+63, 
+           frame->crc,
+           1);
+
 
 
     return char_buffer;
@@ -175,24 +176,45 @@ Frame * convert_char_to_frame(char * char_buf)
     memcpy(frame->seqNum, 
            char_buf+4,
            sizeof(char)*sizeof(frame->seqNum));
-    memset(frame->crc,
-           0,
-           sizeof(char)*sizeof(frame->crc));
-    memcpy(frame->crc, 
-           char_buf+5,
-           sizeof(char)*sizeof(frame->crc));
     memset(frame->inAddition,
            0,
            sizeof(char)*sizeof(frame->inAddition));
     memcpy(frame->inAddition, 
-           char_buf+6,
+           char_buf+5,
            sizeof(char)*sizeof(frame->inAddition));
     memset(frame->data,
            0,
            sizeof(char)*sizeof(frame->data));
     memcpy(frame->data, 
-           char_buf+8,
+           char_buf+7,
            sizeof(char)*sizeof(frame->data));
+    memset(frame->crc,
+           0,
+           sizeof(char)*sizeof(frame->crc));
+    memcpy(frame->crc, 
+           char_buf+63,
+           sizeof(char)*sizeof(frame->crc));
+
 
     return frame;
 }
+
+uint8_t crc8Caculate(char* pendingData, int len){
+  uint8_t crc = 0xFF;
+  int i,j;
+  for(i = 0;i < len; i++){
+    crc ^= (uint8_t)pendingData[i];
+    for (j = 0; j < 8; j++)
+    {
+    if (crc & 0x01)
+        crc = (crc >> 1) ^ 0x9c;
+    else
+        crc = (crc >> 1);
+    }
+  }
+
+  return crc;
+}
+
+
+

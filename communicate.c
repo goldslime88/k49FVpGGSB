@@ -104,16 +104,20 @@ void send_frame(char * char_buffer,
 //NOTE: You should use the following method to transmit messages from senders to receivers
 void send_msg_to_receivers(char * char_buffer)
 {
-    
+    //fprintf(stderr, "in send_msg_to_receivers\n");
     send_frame(char_buffer,
                ReceiverDst);
+    // fprintf(stderr, "aaaaout send_msg_to_receivers\n");
+
     return;
 }
 
 //NOTE: You should use the following method to transmit messages from receivers to senders
 void send_msg_to_senders(char * char_buffer)
 {
+    // fprintf(stderr, "in send_msg_to_senders\n");
     send_frame(char_buffer,
                SenderDst);
+    // fprintf(stderr, "out send_msg_to_senders\n");
     return;
 }

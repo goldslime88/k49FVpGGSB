@@ -30,4 +30,8 @@ long timeval_usecdiff(struct timeval *,
 //TODO: Impelemt these functions
 char * convert_frame_to_char(Frame *);
 Frame * convert_char_to_frame(char *);
+
+//Crc8 algorithm
+uint8_t crc8Caculate(char* pendingData, int len);
+
 #endif

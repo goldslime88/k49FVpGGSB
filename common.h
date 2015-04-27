@@ -17,6 +17,23 @@
 #define AUTOMATED_FILENAME 512
 typedef unsigned char uchar_t;
 
+
+#define MAX_FRAME_SIZE 64
+
+//TODO: You should change this!
+//Remember, your frame can be AT MOST 64 bytes!
+#define FRAME_PAYLOAD_SIZE 56
+struct Frame_t
+{
+    char recv_id[2];
+    char send_id[2];
+    char seqNum[1];
+    char inAddition[2];
+    char data[FRAME_PAYLOAD_SIZE];
+    char crc[1];
+};
+typedef struct Frame_t Frame;
+
 //System configuration information
 struct SysConfig_t
 {
@@ -69,11 +86,14 @@ struct Receiver_t
     LLnode * input_framelist_head;
     
     int recv_id;
-    int LAR;
-    int LFS;
-    int RWS;
-    int SeqNumToAck; 
-
+    uint8_t LAF;
+    uint8_t LFR;
+    uint8_t RWS;
+    uint8_t SeqNumToAck; 
+    int isReceived_Frame[8];
+    char* cached_FrameArray[8];
+    char bufferedMessage[10000];
+    int pendingMessage;
 };
 
 struct Sender_t
@@ -90,13 +110,15 @@ struct Sender_t
     LLnode * input_framelist_head;
 
     int send_id;
-    int seqNum;
-    int LFR;
-    int LAF;
-    int SWS;
-    Frame cached_FrameArray[8];
-    bool isCached_Frame[8];
-    long lastSendTime_Frame[8];
+    uint8_t seqNum;
+    uint8_t LAR;
+    uint8_t LFS;
+    uint8_t SWS;
+    char* cached_FrameArray[8];
+    int isCached_Frame[8];
+    struct timeval lastSendTime_Frame[8];
+    uint8_t seqQue[8];
+    
 
 };
 
@@ -110,21 +132,7 @@ typedef struct Sender_t Sender;
 typedef struct Receiver_t Receiver;
 
 
-#define MAX_FRAME_SIZE 64
 
-//TODO: You should change this!
-//Remember, your frame can be AT MOST 64 bytes!
-#define FRAME_PAYLOAD_SIZE 64
-struct Frame_t
-{
-    char recv_id[2];
-    char send_id[2];
-    char seqNum[1];
-    char crc[1];
-    char inAddition[2];
-    char data[FRAME_PAYLOAD_SIZE - 8];
-};
-typedef struct Frame_t Frame;
 
 
 //Declare global variables here
