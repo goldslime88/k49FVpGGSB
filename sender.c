@@ -166,7 +166,7 @@ void handle_input_cmds(Sender * sender,
                     i++;
                 }
 
-                outgoing_cmd->message = outgoing_cmd->message + FRAME_PAYLOAD_SIZE;
+                outgoing_cmd->message = outgoing_cmd->message + FRAME_PAYLOAD_SIZE-1;
                 
                 
                 ll_append_node(&sender->input_cmdlist_head,
