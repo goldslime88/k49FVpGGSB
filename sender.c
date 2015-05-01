@@ -93,20 +93,18 @@ void handle_incoming_acks(Sender * sender,
             fprintf(stderr, "ACK of %d is corrupted.\n",seqNum );
         }
         if(dst == sender->send_id && isCorrect == 0){
-            sender->LAR++;
             for(i = 0; i < 8; i++){
                 if(sender->seqQue[i] == seqNum){
                     sender->isCached_Frame[i] = 0;
-                    
+                    sender->LAR++;
+                    fprintf(stderr, "ACK of %d received.\n", seqNum);
+                    fprintf(stderr, "LAR is %d, LFS is %d \n", sender->LAR, sender->LFS);
+                    break;
                 }
-            }
-            
-            fprintf(stderr, "ACK of %d received.\n", seqNum);
+            }           
         }
     }
-
     // fprintf(stderr, "out handle_incoming_acks\n");
-
 }
 
 
@@ -120,24 +118,27 @@ void handle_input_cmds(Sender * sender,
     //    4) Compute CRC and add CRC to Frame
     // fprintf(stderr, "in handle_input_cmds\n");
 
-    int LfsMinusLar;
-    if(sender->LFS - sender->LAR < 0){
-        LfsMinusLar = 256 + sender->LFS - sender->LAR;
 
-    }
-    else{
-        LfsMinusLar = sender->LFS - sender->LAR;
-    }
-    if(LfsMinusLar < sender->SWS){
-        int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+    int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
 
             
-        //Recheck the command queue length to see if stdin_thread dumped a command on us
-        input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-        while (input_cmd_length > 0)
-        {
-            //fprintf(stderr, "begin handle_input_cmds\n");
-            //Pop a node off and update the input_cmd_length
+    //Recheck the command queue length to see if stdin_thread dumped a command on us
+    input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+    while (input_cmd_length > 0)
+    {
+        //fprintf(stderr, "begin handle_input_cmds\n");
+        //Pop a node off and update the input_cmd_length
+        int LfsMinusLar;
+        if(sender->LFS - sender->LAR < 0){
+            LfsMinusLar = 256 + sender->LFS - sender->LAR;
+
+        }
+        else{
+            LfsMinusLar = sender->LFS - sender->LAR;
+        }
+        if(LfsMinusLar < sender->SWS){
+
+        
             LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
             input_cmd_length = ll_get_length(sender->input_cmdlist_head);
             //Cast to Cmd type and free up the memory for the node
@@ -260,6 +261,9 @@ void handle_input_cmds(Sender * sender,
             
             // free(outgoing_cmd->message);
             // free(outgoing_cmd);
+        }
+        else{
+            break;
         }
     } 
     

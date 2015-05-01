@@ -61,24 +61,26 @@ void handle_incoming_msgs(Receiver * receiver,
         if(isCorrect != 0){
             fprintf(stderr, "%u is corrupted.\n", (uint8_t)(seqNum));  
         }
-        uint8_t isInWindow;
+        uint8_t isInWindow = 2;
         if(receiver->LFR > receiver->LAF){
             if(seqNum >receiver->LFR || seqNum <= receiver->LAF)
                 isInWindow = 1;
-            else
+            else if(seqNum<=receiver->LFR)
                 isInWindow = 0;
         }
         else{
             if(seqNum >receiver->LFR && seqNum <= receiver->LAF){
                 isInWindow = 1;
             }
-            else{
+            else if(seqNum<=receiver->LFR||(seqNum>=248&&seqNum<=255)){
                 isInWindow = 0;
             }
         }
         uint8_t slotNum;
         slotNum = (uint8_t)(seqNum - receiver->LFR - 1);
-        if(receiver->isReceived_Frame[slotNum] == 1 || isInWindow == 0){
+
+
+        if((receiver->isReceived_Frame[slotNum] == 1 || isInWindow == 0)&&isCorrect==0){
             //fprintf(stderr, "hahahahahs\n");
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
             outgoing_frame->recv_id[0] = (char)((src>>8) & 0xFF);
@@ -90,7 +92,7 @@ void handle_incoming_msgs(Receiver * receiver,
             char * calculating_charbuf = convert_frame_to_char(outgoing_frame);
             uint8_t crc = (uint8_t)crc8Caculate(calculating_charbuf, 63);
             outgoing_frame->crc[0] = (char)(crc);
-            // fprintf(stderr, "ack crc is %d\n", crc );
+            fprintf(stderr, "Duplicate Ack of %d sent\n", seqNum );
 
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
             ll_append_node(outgoing_frames_head_ptr,
@@ -100,7 +102,8 @@ void handle_incoming_msgs(Receiver * receiver,
         }
         else if(dst == receiver->recv_id && isInWindow == 1 && isCorrect == 0
             && receiver->isReceived_Frame[slotNum] == 0){
-            fprintf(stderr, "%u received. \n", (uint8_t)(seqNum));  
+            fprintf(stderr, "%u received. \n", (uint8_t)(seqNum));
+            fprintf(stderr, "Ack of %d sent\n", seqNum );  
             char *tempbuf = convert_frame_to_char(inframe);
             memset(receiver->cached_FrameArray[slotNum],0,MAX_FRAME_SIZE);
             memcpy(receiver->cached_FrameArray[slotNum],tempbuf, MAX_FRAME_SIZE);
@@ -115,34 +118,34 @@ void handle_incoming_msgs(Receiver * receiver,
 
                 Frame *tempFrame = convert_char_to_frame(receiver->cached_FrameArray[0]);
                 // fprintf(stderr, "%d\n", tempFrame->inAddition[1]);
-                if(((tempFrame->inAddition[1])&0xFF) == 0x00){
-                    if(receiver->pendingMessage == 1){
-                        // fprintf(stderr, "%d \n", strlen(receiver->bufferedMessage));
-                        strcat(receiver->bufferedMessage,tempFrame->data);
+                // if(((tempFrame->inAddition[1])&0xFF) == 0x00){
+                //     if(receiver->pendingMessage == 1){
+                //         // fprintf(stderr, "%d \n", strlen(receiver->bufferedMessage));
+                //         strcat(receiver->bufferedMessage,tempFrame->data);
                         
-                        printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->bufferedMessage);
-                        memset(receiver->bufferedMessage,0,10000);
-                        receiver->pendingMessage = 0;
-                    }
-                    else{
+                //         printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->bufferedMessage);
+                //         memset(receiver->bufferedMessage,0,10000);
+                //         receiver->pendingMessage = 0;
+                //     }
+                //     else{
                         
                         printf("<RECV_%d>:[%s]\n", receiver->recv_id, tempFrame->data);
-                    }
+                //     }
                     
-                }
-                else{
-                    if(receiver->pendingMessage == 1){
-                        strcat(receiver->bufferedMessage,tempFrame->data);
+                // }
+                // else{
+                //     if(receiver->pendingMessage == 1){
+                //         strcat(receiver->bufferedMessage,tempFrame->data);
                         
-                    }
-                    else{
-                        // fprintf(stderr, "%d \n", strlen(tempFrame->data));
-                        strcpy(receiver->bufferedMessage,tempFrame->data);
-                        receiver->pendingMessage = 1;
-                    }
+                //     }
+                //     else{
+                //         // fprintf(stderr, "%d \n", strlen(tempFrame->data));
+                //         strcpy(receiver->bufferedMessage,tempFrame->data);
+                //         receiver->pendingMessage = 1;
+                //     }
 
 
-                }
+                // }
                 // free(receiver->cached_FrameArray[0]);
                 // receiver->cached_FrameArray[0] = NULL;
                 
@@ -151,34 +154,34 @@ void handle_incoming_msgs(Receiver * receiver,
                     if(receiver->isReceived_Frame[i] == 1){
                         receiver->isReceived_Frame[i] = 0;
                         Frame *tempFrame = convert_char_to_frame(receiver->cached_FrameArray[i]);
-                        if(((tempFrame->inAddition[1])&0xFF) == 0x00){
-                            if(receiver->pendingMessage == 1){
-                                // fprintf(stderr, "%d \n", strlen(receiver->bufferedMessage));
-                                strcat(receiver->bufferedMessage,tempFrame->data);
+                        // if(((tempFrame->inAddition[1])&0xFF) == 0x00){
+                        //     if(receiver->pendingMessage == 1){
+                        //         // fprintf(stderr, "%d \n", strlen(receiver->bufferedMessage));
+                        //         strcat(receiver->bufferedMessage,tempFrame->data);
                         
-                                printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->bufferedMessage);
-                                memset(receiver->bufferedMessage,0,10000);
-                                receiver->pendingMessage = 0;
-                            }
-                            else{
+                        //         printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->bufferedMessage);
+                        //         memset(receiver->bufferedMessage,0,10000);
+                        //         receiver->pendingMessage = 0;
+                        //     }
+                        //     else{
                         
                                 printf("<RECV_%d>:[%s]\n", receiver->recv_id, tempFrame->data);
-                            }
+                        //     }
                     
-                        }
-                        else{
-                            if(receiver->pendingMessage == 1){
-                                strcat(receiver->bufferedMessage,tempFrame->data);
+                        // }
+                        // else{
+                        //     if(receiver->pendingMessage == 1){
+                        //         strcat(receiver->bufferedMessage,tempFrame->data);
                         
-                            }
-                            else{
-                                // fprintf(stderr, "%d \n", strlen(tempFrame->data));
-                                strcpy(receiver->bufferedMessage,tempFrame->data);
-                                receiver->pendingMessage = 1;
-                            }
+                        //     }
+                        //     else{
+                        //         // fprintf(stderr, "%d \n", strlen(tempFrame->data));
+                        //         strcpy(receiver->bufferedMessage,tempFrame->data);
+                        //         receiver->pendingMessage = 1;
+                        //     }
 
 
-                        }
+                        // }
 
                         move ++;
                     }
