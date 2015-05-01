@@ -33,8 +33,8 @@ echo "Done rebuilding tritontalk"
 echo
 
 ## My test
-echo -n "My test : Sending 300 packets (with corrupt probability of 40% and drop rate of 40%) and expecting receiver to print them out in order(longer sleep time at last for handle time out frames): "
-(sleep 0.5; for i in `seq 1 300`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 60; echo "exit") | ./tritontalk -c 0.4 -d 0.4 -r 1 -s 1 > .output.my 2> .debug_output.my
+echo -n "My test : Sending 300 packets (with corrupt probability of 20% and drop rate of 20%) and expecting receiver to print them out in order(longer sleep time at last for handle time out frames): "
+(sleep 0.5; for i in `seq 1 300`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 30; echo "exit") | ./tritontalk -c 0.2 -d 0.2 -r 1 -s 1 > .output.my 2> .debug_output.my
 
 (for i in `seq 1 300`; do echo "<RECV_0>:[Packet: $i]"; done) > .expected_output.my
 

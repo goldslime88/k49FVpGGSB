@@ -10,7 +10,6 @@ void init_receiver(Receiver * receiver,
     receiver->LAF = 7;
     receiver->LFR = -1;
     receiver->RWS = 8;
-    receiver->SeqNumToAck = -1; 
     int i;
     for(i=0;i<8;i++){
         receiver->isReceived_Frame[i] = 0;

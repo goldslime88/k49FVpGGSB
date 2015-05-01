@@ -89,7 +89,6 @@ struct Receiver_t
     uint8_t LAF;
     uint8_t LFR;
     uint8_t RWS;
-    uint8_t SeqNumToAck; 
     int isReceived_Frame[8];
     char* cached_FrameArray[8];
     char bufferedMessage[10000];
