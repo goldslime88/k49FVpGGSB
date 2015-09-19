@@ -69,7 +69,6 @@ void handle_incoming_acks(Sender * sender,
         //Pop a node off the front of the link list and update the count
         LLnode * ll_inmsg_node = ll_pop_node(&sender->input_framelist_head);
         incoming_msgs_length = ll_get_length(sender->input_framelist_head);
-        //fprintf(stderr, "this is bug!!!!!\n" );
         //DUMMY CODE: Print the raw_char_buf
         //NOTE: You should not blindly print messages!
         //      Ask yourself: Is this message really for me?
@@ -78,7 +77,6 @@ void handle_incoming_acks(Sender * sender,
         char * raw_char_buf = (char *) ll_inmsg_node->value;
         Frame * inframe = convert_char_to_frame(raw_char_buf);
         uint8_t isCorrect = (uint8_t)crc8Caculate(raw_char_buf, 64);
-        //fprintf(stderr, "ack reminder is %d\n", isCorrect );
 
         //Free raw_char_buf
         free(raw_char_buf);
@@ -104,7 +102,6 @@ void handle_incoming_acks(Sender * sender,
             }           
         }
     }
-    // fprintf(stderr, "out handle_incoming_acks\n");
 }
 
 
@@ -126,7 +123,6 @@ void handle_input_cmds(Sender * sender,
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
     while (input_cmd_length > 0)
     {
-        //fprintf(stderr, "begin handle_input_cmds\n");
         //Pop a node off and update the input_cmd_length
         int LfsMinusLar;
         if(sender->LFS - sender->LAR < 0){
@@ -138,7 +134,6 @@ void handle_input_cmds(Sender * sender,
         }
         if(LfsMinusLar < sender->SWS){
 
-        
             LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
             input_cmd_length = ll_get_length(sender->input_cmdlist_head);
             //Cast to Cmd type and free up the memory for the node
@@ -156,7 +151,6 @@ void handle_input_cmds(Sender * sender,
             if (msg_length > FRAME_PAYLOAD_SIZE-1)
             {
                 //Do something about messages that exceed the frame size
-                // printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
                 char * temp_data = (char*) malloc(sizeof(char) * FRAME_PAYLOAD_SIZE);
                 
                 memset(temp_data,0,FRAME_PAYLOAD_SIZE);
@@ -172,9 +166,7 @@ void handle_input_cmds(Sender * sender,
                 
                 ll_append_node(&sender->input_cmdlist_head,
                                (void *) outgoing_cmd);
-                // fprintf(stderr, "%d \n", strlen(temp_data));
                 strcpy(outgoing_frame->data, temp_data);
-                // fprintf(stderr, "sender before data size is %d \n", strlen(outgoing_frame->data));
                 outgoing_frame->recv_id[0] = (char)((outgoing_cmd->dst_id>>8) & 0xFF);
                 outgoing_frame->recv_id[1] = (char)((outgoing_cmd->dst_id) & 0xFF);
                 outgoing_frame->send_id[0] = (char)((outgoing_cmd->src_id>>8) & 0xFF);
@@ -182,8 +174,6 @@ void handle_input_cmds(Sender * sender,
                 outgoing_frame->seqNum[0] = (char)(sender->seqNum);                            
                 outgoing_frame->inAddition[1] = (char)(1 & 0xFF);
                 
-                
-
 
             }
 
@@ -207,15 +197,9 @@ void handle_input_cmds(Sender * sender,
             //Convert the message to the outgoing_charbuf
             char * calculating_charbuf = convert_frame_to_char(outgoing_frame);
             uint8_t crc = (uint8_t)crc8Caculate(calculating_charbuf, 63);
-            // fprintf(stderr, "sender john data size is %d \n", strlen(outgoing_frame->data));
-            // fprintf(stderr, "message crc is %u\n", crc);
             outgoing_frame->crc[0] = (char)(crc);
-            // fprintf(stderr, "sender during data size is %d \n", strlen(outgoing_frame->data));
 
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-            //char * storing_charbuf = convert_frame_to_char(outgoing_frame);
-            // memset(storing_charbuf,0,64);
-            // memcpy(storing_charbuf,outgoing_charbuf,64);
             int i;
             for(i=0;i<8;i++){
                 if(sender->isCached_Frame[i] == 0){
@@ -223,9 +207,7 @@ void handle_input_cmds(Sender * sender,
                     (sender->cached_FrameArray)[i] = (char*)malloc(sizeof(char)*MAX_FRAME_SIZE);
                     memset(sender->cached_FrameArray[i], 0, 64);
                     memcpy(sender->cached_FrameArray[i],outgoing_charbuf,64);
-                    //fprintf(stderr, "size is %ld\n",sizeof(storing_charbuf) );
                     sender->seqQue[i] = sender->seqNum;
-                    // fprintf(stderr, "seqQue : %d\n", sender->seqNum);
                     struct timeval curr;
                     gettimeofday(&curr, NULL);
                     long usTime = curr.tv_usec+100000;
@@ -250,24 +232,19 @@ void handle_input_cmds(Sender * sender,
                 sender->seqNum++;
             }
             sender->LFS++;
-            // fprintf(stderr, "sender data size %d \n", strlen(outgoing_frame->data));
 
             fprintf(stderr, "LAR is %d, LFS is %d \n", sender->LAR, sender->LFS);
             ll_append_node(outgoing_frames_head_ptr,
                            outgoing_charbuf);
             free(outgoing_frame);
             free(calculating_charbuf);
-            
-            
-            // free(outgoing_cmd->message);
-            // free(outgoing_cmd);
+                    
         }
         else{
             break;
         }
     } 
     
-    // fprintf(stderr, "out handle_input_cmds\n");
   
 }
 
@@ -282,16 +259,13 @@ void handle_timedout_frames(Sender * sender,
     
     int i;
     long timeDiff;
-    // fprintf(stderr, "in handle_timedout_frames\n");
     for(i = 0; i < 8; i++){
         if(sender->isCached_Frame[i] == 1 && sender->cached_FrameArray[i] != NULL){
             struct timeval    curr_timeval;
             gettimeofday(&curr_timeval,NULL);
             timeDiff = timeval_usecdiff(&(sender->lastSendTime_Frame[i]), &curr_timeval);
-            // fprintf(stderr, "%ld\n",timeDiff );
             if(timeDiff >=0){
 
-                // fprintf(stderr, "hahahah\n" );
                 char *tempBuf =  (char *) malloc(sizeof(char)*MAX_FRAME_SIZE);
                 memset(tempBuf,0,MAX_FRAME_SIZE);
                 memcpy(tempBuf,sender->cached_FrameArray[i], MAX_FRAME_SIZE);
@@ -313,7 +287,6 @@ void handle_timedout_frames(Sender * sender,
             }
         }
     }
-    // fprintf(stderr, "out handle_timedout_frames\n");
 
 }
 
